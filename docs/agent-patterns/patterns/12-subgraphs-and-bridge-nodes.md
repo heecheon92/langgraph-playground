@@ -1,6 +1,6 @@
 ---
 created: 2026-05-18
-updated: 2026-05-18
+updated: 2026-06-08
 status: active
 topics:
   - langgraph
@@ -16,18 +16,13 @@ related_code:
 
 **Difficulty:** Intermediate/Advanced
 
-### What the pattern teaches
+## What this pattern is
 
-A compiled graph can be used as a node inside a parent graph. This lets you package a workflow as a reusable unit.
+A compiled graph can be used as a node inside another graph. This packages a workflow as a reusable unit. If parent and child graphs share a compatible state schema, the child graph can be added directly. If their schemas differ, use a bridge node that maps parent input into child input and child output back into parent state.
 
-If parent and child state schemas differ, use a bridge node:
+This pattern teaches composition and schema boundaries.
 
-1. read parent state;
-2. build child input;
-3. invoke child graph;
-4. map child output back into parent state.
-
-### Basic graph shape
+## Flowchart
 
 ```mermaid
 flowchart TD
@@ -37,13 +32,31 @@ flowchart TD
     ParentFinish --> End([END])
 
     subgraph ChildGraph[child graph]
-      C1[child_step_1] --> C2[child_step_2]
+        CStart([START]) --> C1[child_step_1]
+        C1 --> C2[child_step_2]
+        C2 --> CEnd([END])
     end
 ```
 
-### Typical state
+## Bridge sequence
+
+```mermaid
+sequenceDiagram
+    participant Parent
+    participant Bridge
+    participant Child
+
+    Parent->>Bridge: ParentState(user_request, context)
+    Bridge->>Child: ChildState(child_input)
+    Child-->>Bridge: ChildState(child_output)
+    Bridge-->>Parent: {child_summary, child_status}
+```
+
+## State contract
 
 ```python
+from typing_extensions import NotRequired, TypedDict
+
 class ParentState(TypedDict):
     user_request: str
     child_summary: NotRequired[str]
@@ -54,31 +67,40 @@ class ChildState(TypedDict):
     child_output: NotRequired[str]
 ```
 
-### Implementation cautions
+## What to practice
 
-- Do not leak child-private state into parent state.
-- Use direct subgraph nodes when schemas match.
-- Use bridge functions when schemas differ.
-- Keep child graphs independently understandable.
+- Use direct subgraph nodes only when schemas align.
+- Use a bridge when parent and child vocabularies differ.
+- Keep child-private fields out of parent state.
+- Test the child graph independently before embedding it.
+- Name the bridge by the contract it translates, not just `call_child`.
 
-### Simulated-agent idea seeds
+## Common mistakes
 
-#### Department Workflow Simulator
+- Leaking all child internals into parent state.
+- Making the parent know every child node detail, which defeats encapsulation.
+- Using subgraphs too early when a simple node would teach the pattern better.
+- Forgetting that subgraph state still needs clear reducers if it has parallel branches.
 
-A parent graph routes work through a research subgraph, writing subgraph, and review subgraph.
+## Simulated-agent idea seeds
 
-Why it is useful: it teaches graph composition.
+### Department Workflow Simulator
 
-#### Delivery Bridge Demo
+A parent graph routes work through research, writing, and review child workflows.
+
+### Delivery Bridge Demo
 
 A parent order graph invokes a child delivery graph through explicit input/output mapping.
 
-Why it is useful: it teaches schema boundaries.
+## Smallest deterministic version
 
-## Usage note
+Build a child graph that turns `child_input` into `child_output`, then call it from a parent bridge node and store `child_summary`.
 
-Use this pattern file only when the selected practice-agent idea needs this specific concept. Keep the main index in context for selection, then load this detail file for implementation planning.
+## How the bootstrap skill should use this file
+
+When this pattern is selected, the bootstrap skill should turn the graph shape, state contract, and smallest deterministic exercise into the per-agent README pair. Keep the first scaffold offline and simulated. Add real model calls only after the learner can explain the deterministic version.
 
 ## Revision history
 
+- 2026-06-08: Expanded into a descriptive, pattern-accurate guide with diagrams and implementation cautions.
 - 2026-05-18: Split from the original monolithic candidate-materials note.

@@ -1,6 +1,6 @@
 ---
 created: 2026-05-18
-updated: 2026-05-18
+updated: 2026-06-08
 status: active
 topics:
   - langgraph
@@ -16,65 +16,83 @@ related_code:
 
 **Difficulty:** Beginner
 
-### What the pattern teaches
+## What this pattern is
 
-Reducers define how updates to the same state key are merged. Without a reducer, a later update overwrites an earlier one. In parallel graphs, that can lose data or cause conflicts.
+A reducer defines how multiple updates to the same state key are merged. In a linear graph, overwriting may be fine. In a parallel graph, two branches can write the same key in the same super-step; without a reducer, you either lose data or get a conflict.
 
-Reducers are especially important when several branches write to the same list.
+Think of state keys as channels. A reducer is the merge rule for a channel.
 
-### Basic graph shape
+## Flowchart
 
 ```mermaid
 flowchart TD
     Start([START]) --> A[branch_a]
     Start --> B[branch_b]
-    A --> Merge[merge]
+    A --> Merge[merge_and_explain]
     B --> Merge
     Merge --> End([END])
+
+    A -. returns .-> EA[evidence += A note]
+    B -. returns .-> EB[evidence += B note]
 ```
 
-### Typical state
+## Merge model
+
+```mermaid
+flowchart LR
+    U1[branch A update<br/>{evidence: [a]}] --> Reducer{operator.add}
+    U2[branch B update<br/>{evidence: [b]}] --> Reducer
+    Reducer --> State[evidence: [a, b]]
+```
+
+## State contract
 
 ```python
+import operator
+from typing import Annotated
+from typing_extensions import NotRequired, TypedDict
+
 class State(TypedDict):
     question: str
     evidence: Annotated[list[str], operator.add]
     final_answer: NotRequired[str]
 ```
 
-Both `branch_a` and `branch_b` can return:
+Both branches can safely return `{"evidence": ["..."]}`. The reducer concatenates the lists. Use reducers because multiple updates must merge, not merely because a field happens to be a list.
 
-```python
-{"evidence": ["some result"]}
-```
+## What to practice
 
-The reducer combines the lists.
+- Run the same graph with and without a reducer to see the difference.
+- Keep each branch output shape identical.
+- Add a synthesis node that reads the merged list.
+- Practice custom reducers only after `operator.add` is clear.
 
-### Implementation cautions
+## Common mistakes
 
-- Add reducers to keys that multiple parallel branches update.
-- Use simple reducer behavior first, such as list concatenation.
-- Do not use a reducer just because a field is a list; use one because multiple updates must merge.
-- Make worker output shape consistent.
+- Assuming lists automatically append without `Annotated[..., reducer]`.
+- Writing reducers that mutate inputs in surprising ways.
+- Depending on branch ordering unless the reducer or synthesis node explicitly handles order.
+- Using a reducer to hide poorly separated state keys.
 
-### Simulated-agent idea seeds
+## Simulated-agent idea seeds
 
-#### Reducer Playground
+### Reducer Playground
 
 Two fake workers produce notes about the same topic. The graph shows what happens with and without a reducer.
 
-Why it is useful: it turns a hidden state-merge concept into visible behavior.
-
-#### Evidence Collector
+### Evidence Collector
 
 Fake web search and fake documentation search run in parallel. Their evidence lists merge before a synthesis node writes the final answer.
 
-Why it is useful: it practices fan-out/fan-in plus reducer-backed state.
+## Smallest deterministic version
 
-## Usage note
+Fan out to two nodes from `START`, have each return one evidence string, then synthesize the combined list into a final explanation.
 
-Use this pattern file only when the selected practice-agent idea needs this specific concept. Keep the main index in context for selection, then load this detail file for implementation planning.
+## How the bootstrap skill should use this file
+
+When this pattern is selected, the bootstrap skill should turn the graph shape, state contract, and smallest deterministic exercise into the per-agent README pair. Keep the first scaffold offline and simulated. Add real model calls only after the learner can explain the deterministic version.
 
 ## Revision history
 
+- 2026-06-08: Expanded into a descriptive, pattern-accurate guide with diagrams and implementation cautions.
 - 2026-05-18: Split from the original monolithic candidate-materials note.

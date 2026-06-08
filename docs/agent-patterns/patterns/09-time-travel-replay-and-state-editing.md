@@ -1,6 +1,6 @@
 ---
 created: 2026-05-18
-updated: 2026-05-18
+updated: 2026-06-08
 status: active
 topics:
   - langgraph
@@ -16,24 +16,44 @@ related_code:
 
 **Difficulty:** Intermediate/Advanced
 
-### What the pattern teaches
+## What this pattern is
 
-When a graph uses checkpointing, execution history becomes inspectable. You can view previous states, resume from interruption, replay a path, or fork from an earlier checkpoint with edited state.
+With checkpointing, a graph run becomes a timeline of state snapshots. You can inspect the history, replay from an earlier checkpoint, or fork by editing state and continuing from that point.
 
-This is not just a debugging trick. It is an operational model for agents that need oversight.
+This is more than debugging. It is an operational model for recoverable agents: observe what happened, correct state, and explore alternate futures without losing the original execution history.
 
-### Basic graph shape
+## Flowchart
 
 ```mermaid
 flowchart TD
-    Run[run with checkpoints] --> Inspect[inspect state history]
-    Inspect --> Replay[replay old state]
-    Inspect --> Fork[edit state and fork]
+    Run[run with checkpointer] --> History[get_state_history]
+    History --> Pick{choose checkpoint}
+    Pick -->|replay| Replay[reinvoke from checkpoint config]
+    Pick -->|fork| Update[update_state on checkpoint]
+    Update --> Continue[invoke None from fork]
+    Replay --> Compare[compare outcomes]
+    Continue --> Compare
 ```
 
-### Typical state
+## Replay vs fork
+
+```mermaid
+stateDiagram-v2
+    [*] --> OriginalRun
+    OriginalRun --> CheckpointA
+    CheckpointA --> CheckpointB
+    CheckpointB --> Final
+    CheckpointA --> ReplayPath: replay
+    CheckpointA --> ForkedPath: update_state + continue
+    ReplayPath --> ReplayFinal
+    ForkedPath --> ForkedFinal
+```
+
+## State contract
 
 ```python
+from typing_extensions import NotRequired, TypedDict
+
 class State(TypedDict):
     input: str
     draft: NotRequired[str]
@@ -41,31 +61,40 @@ class State(TypedDict):
     final: NotRequired[str]
 ```
 
-### Implementation cautions
+## What to practice
 
 - Use stable `thread_id` values when checkpointing.
-- Make state fields readable so history inspection is useful.
-- Keep side effects fake or idempotent in learning simulations.
-- Do not replay real irreversible side effects.
+- Inspect `next` nodes and state values in history.
+- Replay to understand behavior; fork to intervene.
+- Keep fake side effects idempotent so replay is safe.
+- Make state human-readable enough that history inspection is useful.
 
-### Simulated-agent idea seeds
+## Common mistakes
 
-#### Time Travel Debug Lab
+- Thinking replay is just reading cached output. Nodes after the replay point execute again.
+- Treating `update_state` as rollback. It creates a new checkpoint branch.
+- Replaying real irreversible side effects.
+- Storing opaque blobs that make checkpoint inspection useless.
+
+## Simulated-agent idea seeds
+
+### Time Travel Debug Lab
 
 Run a draft-review graph, inspect fake checkpoints, then fork with corrected feedback.
 
-Why it is useful: it teaches checkpoint mental models without production risk.
-
-#### Alternate Ending Simulator
+### Alternate Ending Simulator
 
 Given one draft, fork into “strict reviewer” and “friendly reviewer” outcomes.
 
-Why it is useful: it makes state forking concrete.
+## Smallest deterministic version
 
-## Usage note
+Run a three-node draft/critique/final graph, inspect checkpoints, update the critique at the middle checkpoint, and continue to a new final answer.
 
-Use this pattern file only when the selected practice-agent idea needs this specific concept. Keep the main index in context for selection, then load this detail file for implementation planning.
+## How the bootstrap skill should use this file
+
+When this pattern is selected, the bootstrap skill should turn the graph shape, state contract, and smallest deterministic exercise into the per-agent README pair. Keep the first scaffold offline and simulated. Add real model calls only after the learner can explain the deterministic version.
 
 ## Revision history
 
+- 2026-06-08: Expanded into a descriptive, pattern-accurate guide with diagrams and implementation cautions.
 - 2026-05-18: Split from the original monolithic candidate-materials note.

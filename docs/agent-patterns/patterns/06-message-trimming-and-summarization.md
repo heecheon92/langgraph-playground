@@ -1,6 +1,6 @@
 ---
 created: 2026-05-18
-updated: 2026-05-18
+updated: 2026-06-08
 status: active
 topics:
   - langgraph
@@ -16,60 +16,81 @@ related_code:
 
 **Difficulty:** Beginner/Intermediate
 
-### What the pattern teaches
+## What this pattern is
 
-A chat graph can store a long message history, but the model does not always need to see all messages. Trimming, filtering, and summarization manage context size.
+Message trimming and summarization manage chat context growth. The key distinction is between what the graph stores and what the model sees on a particular call.
 
-There are two different questions:
+A graph may keep full message history in checkpointed state, delete old messages from state, filter only the prompt input, or summarize older messages into a compact field. These are different design choices.
 
-1. What does the graph store?
-2. What does the model see on this call?
-
-These can be different.
-
-### Basic graph shape
+## Flowchart
 
 ```mermaid
 flowchart TD
     Start([START]) --> Chat[call_model]
-    Chat --> TooLong{too many messages?}
-    TooLong -->|yes| Summarize[summarize_conversation]
-    TooLong -->|no| End([END])
-    Summarize --> End
+    Chat --> Count{message budget exceeded?}
+    Count -->|no| End([END])
+    Count -->|yes| Summarize[summarize_old_messages]
+    Summarize --> Trim[remove or filter old messages]
+    Trim --> End
 ```
 
-### Typical state
+## State vs prompt view
+
+```mermaid
+flowchart LR
+    State[(checkpointed messages)] --> Policy{context policy}
+    Policy -->|delete| SmallerState[(shorter state)]
+    Policy -->|filter| Prompt[model sees recent subset]
+    Policy -->|summarize| Summary[summary + recent messages]
+    Summary --> Prompt
+```
+
+## State contract
 
 ```python
+from typing_extensions import NotRequired
+from langgraph.graph import MessagesState
+
 class State(MessagesState):
     summary: NotRequired[str]
 ```
 
-### Implementation cautions
+`MessagesState` uses the `add_messages` reducer. If you delete messages, use the message removal mechanism rather than mutating the list in place. If you only filter model input, make that explicit so learners do not confuse prompt compression with state deletion.
 
-- Keep recent messages verbatim when possible.
-- Summarize older messages into a dedicated `summary` field.
-- Be explicit about whether a node deletes old messages or only filters model input.
-- Do not confuse message state with long-term memory. Message state is conversation context; durable memory is a separate design choice.
+## What to practice
 
-### Simulated-agent idea seeds
+- Keep the latest user and assistant messages verbatim.
+- Summarize older context into a dedicated `summary` field.
+- Show before/after prompt payloads in debug logs.
+- Add deterministic thresholds first, such as “summarize after 6 messages.”
+- Pair summarization with checkpointing when you want continuity across invocations.
 
-#### Conversation Janitor
+## Common mistakes
 
-Given fake messages, decide which to keep, remove, or summarize.
+- Calling summarization “long-term memory.” It is prompt compression, not durable user memory.
+- Deleting old messages without preserving important commitments in the summary.
+- Letting the summary become stale after later corrections.
+- Sending both a huge history and a summary, which defeats the purpose.
 
-Why it is useful: it teaches message state hygiene.
+## Simulated-agent idea seeds
 
-#### Summary Gate Chatbot
+### Conversation Janitor
+
+Given fake messages, decide which to keep, remove, or summarize. This teaches message state hygiene.
+
+### Summary Gate Chatbot
 
 After a threshold, create a summary and continue with summary plus recent messages.
 
-Why it is useful: it practices stateful chat without needing a production memory system.
+## Smallest deterministic version
 
-## Usage note
+Feed eight fake messages to a graph, summarize the first five into one string, and keep the latest three as recent context.
 
-Use this pattern file only when the selected practice-agent idea needs this specific concept. Keep the main index in context for selection, then load this detail file for implementation planning.
+## How the bootstrap skill should use this file
+
+When this pattern is selected, the bootstrap skill should turn the graph shape, state contract, and smallest deterministic exercise into the per-agent README pair. Keep the first scaffold offline and simulated. Add real model calls only after the learner can explain the deterministic version.
 
 ## Revision history
 
+- 2026-06-08: Expanded into a descriptive, pattern-accurate guide with diagrams and implementation cautions.
 - 2026-05-18: Split from the original monolithic candidate-materials note.

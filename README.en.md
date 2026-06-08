@@ -54,7 +54,7 @@ The goal is to understand why a graph is structured the way it is.
 The recommended workflow for this repository looks like this:
 
 ```mermaid
-flowchart LR
+flowchart TD
     A[Pick a LangGraph pattern] --> B[Create a simulated agent]
     B --> C[Implement graph.py yourself]
     C --> D[Request a review]
@@ -62,6 +62,10 @@ flowchart LR
     E --> F[Compare with graph_reference.py]
     F --> G[Refactor what you understand]
     G --> C
+
+    B -. creates .-> B1[README.md / README.en.md]
+    D -. creates .-> D1[FEEDBACK.md]
+    D -. creates .-> D2[graph_reference.py]
 ```
 
 The core idea is simple:

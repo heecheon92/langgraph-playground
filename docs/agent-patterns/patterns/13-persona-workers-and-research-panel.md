@@ -1,6 +1,6 @@
 ---
 created: 2026-05-18
-updated: 2026-05-18
+updated: 2026-06-08
 status: active
 topics:
   - langgraph
@@ -16,26 +16,47 @@ related_code:
 
 **Difficulty:** Advanced
 
-### What the pattern teaches
+## What this pattern is
 
-A graph can create multiple role/persona workers, run each worker with a different perspective, then synthesize their outputs. This is often called “multi-agent” in a lightweight sense, but the precise implementation is usually a supervisor graph plus multiple worker runs.
+Persona-worker graphs create role-specific workers, run each worker with a distinct perspective or task slice, then synthesize their outputs. This is often called “multi-agent,” but in this learning repo the honest description is: a supervisor graph runs simulated roles or worker nodes.
 
-The important idea is not that the workers are autonomous beings. The important idea is that each worker receives a distinct role, state slice, or objective.
+The research-assistant shape is the canonical example: create analysts, optionally ask a human to approve them, run an interview or retrieval subgraph per analyst, then synthesize a report.
 
-### Basic graph shape
+## Outer flow
 
 ```mermaid
 flowchart TD
-    Start([START]) --> Create[create personas]
-    Create --> Approve[human approve personas]
-    Approve --> Interviews[run worker per persona]
-    Interviews --> Synthesize[synthesize report]
+    Start([START]) --> Create[create_personas]
+    Create --> Approve[human approve / edit personas]
+    Approve --> FanOut{run one worker per persona}
+    FanOut --> A[analyst A memo]
+    FanOut --> B[analyst B memo]
+    FanOut --> C[analyst C memo]
+    A --> Synthesize[synthesize_panel_report]
+    B --> Synthesize
+    C --> Synthesize
     Synthesize --> End([END])
 ```
 
-### Typical state
+## Inner interview loop
+
+```mermaid
+flowchart TD
+    Ask[analyst asks question] --> Retrieve[retrieve fake context]
+    Retrieve --> Answer[expert answers]
+    Answer --> Continue{enough insight?}
+    Continue -->|no| Ask
+    Continue -->|yes| Section[write section memo]
+```
+
+## State contract
 
 ```python
+import operator
+from typing import Annotated
+from pydantic import BaseModel
+from typing_extensions import NotRequired, TypedDict
+
 class Persona(BaseModel):
     name: str
     role: str
@@ -44,35 +65,45 @@ class Persona(BaseModel):
 class State(TypedDict):
     topic: str
     personas: NotRequired[list[Persona]]
+    approved: NotRequired[bool]
     memos: Annotated[list[str], operator.add]
     final_report: NotRequired[str]
 ```
 
-### Implementation cautions
+## What to practice
 
-- Be honest: simulated personas are graph roles/workers, not proof of independent agents.
-- Human approval before expensive fan-out is a good pattern.
-- Each worker should receive only its persona and task.
-- Synthesis should cite which perspective contributed what.
+- Generate a small persona set, usually 2-3 roles.
+- Ask for human approval before expensive fan-out.
+- Give each worker only its persona and task.
+- Store worker outputs as memos with source attribution.
+- Let synthesis compare perspectives rather than concatenate them blindly.
 
-### Simulated-agent idea seeds
+## Common mistakes
 
-#### Mini Research Panel
+- Claiming simulated personas are autonomous agents.
+- Giving every persona the full global state and a vague objective.
+- Skipping approval when persona quality determines downstream quality.
+- Synthesizing without preserving which perspective contributed which insight.
+
+## Simulated-agent idea seeds
+
+### Mini Research Panel
 
 Create 2-3 analyst personas, optionally approve them, run fake interviews, and synthesize a report.
 
-Why it is useful: it combines persona generation, fan-out, and synthesis.
-
-#### Product Project Review Board
+### Product Project Review Board
 
 Product, backend, and risk reviewers evaluate one project idea, then a moderator creates next steps.
 
-Why it is useful: it extends the existing Debate Council idea into a richer graph.
+## Smallest deterministic version
 
-## Usage note
+Use three fixed personas, produce one memo per persona from templates, and synthesize a final report with named sections.
 
-Use this pattern file only when the selected practice-agent idea needs this specific concept. Keep the main index in context for selection, then load this detail file for implementation planning.
+## How the bootstrap skill should use this file
+
+When this pattern is selected, the bootstrap skill should turn the graph shape, state contract, and smallest deterministic exercise into the per-agent README pair. Keep the first scaffold offline and simulated. Add real model calls only after the learner can explain the deterministic version.
 
 ## Revision history
 
+- 2026-06-08: Expanded into a descriptive, pattern-accurate guide with diagrams and implementation cautions.
 - 2026-05-18: Split from the original monolithic candidate-materials note.

@@ -1,6 +1,6 @@
 ---
 created: 2026-05-18
-updated: 2026-05-18
+updated: 2026-06-08
 status: active
 topics:
   - langgraph
@@ -16,68 +16,100 @@ related_code:
 
 **Difficulty:** Beginner/Intermediate
 
-### What the pattern teaches
+## What this pattern is
 
-A tool-calling graph lets the model choose between answering directly and calling a tool. The core shape is:
+A tool-calling router lets the model choose between answering directly and calling a tool. It becomes an agent loop when tool results are observations that go back into the model rather than final output.
 
-1. assistant node receives messages;
-2. assistant may emit tool calls;
-3. router checks whether tool calls exist;
-4. tool node executes tools;
-5. graph loops back to assistant so it can use tool results.
+This pattern is the classic ReAct-shaped graph:
 
-This becomes an agent loop when tool outputs are observations, not final answers.
+1. assistant node calls an LLM with tools bound;
+2. router checks whether the assistant emitted tool calls;
+3. tool node executes the requested tools and appends tool messages;
+4. graph loops back to the assistant;
+5. assistant either calls another tool or returns a final answer.
 
-### Basic graph shape
+## Flowchart
 
 ```mermaid
 flowchart TD
-    Start([START]) --> Assistant[assistant]
-    Assistant --> HasTool{tool call?}
-    HasTool -->|yes| Tools[tools]
+    Start([START]) --> Assistant[assistant LLM]
+    Assistant --> ToolCheck{last message has tool_calls?}
+    ToolCheck -->|yes| Tools[ToolNode / fake tools]
     Tools --> Assistant
-    HasTool -->|no| End([END])
+    ToolCheck -->|no| End([END])
 ```
 
-### Typical state
+## Message sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Assistant
+    participant Tools
+
+    User->>Assistant: HumanMessage(question)
+    Assistant-->>Tools: AIMessage(tool_calls=[...])
+    Tools-->>Assistant: ToolMessage(observation)
+    Assistant-->>User: AIMessage(final answer)
+```
+
+## State contract
 
 ```python
+from langgraph.graph import MessagesState
+
 class State(MessagesState):
     pass
 ```
 
-or explicitly:
+Or explicitly:
 
 ```python
+from typing import Annotated
+from langchain_core.messages import AnyMessage
+from langgraph.graph.message import add_messages
+from typing_extensions import TypedDict
+
 class State(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
 ```
 
-### Implementation cautions
+`add_messages` is important because each assistant or tool node returns new messages; the graph should append or update messages rather than overwrite the whole conversation.
 
-- Use message state when the model/tool loop is the learning point.
-- Tool results should become messages visible to the next assistant call.
-- Keep fake tools deterministic at first.
-- Do not call real external services unless the simulation explicitly needs a safe stub boundary.
+## What to practice
 
-### Simulated-agent idea seeds
+- Start with one or two fake deterministic tools.
+- Give each tool a narrow description so the model has a reason not to call it unnecessarily.
+- Log the message list after each step so the loop becomes visible.
+- Add a loop limit in learning examples to avoid runaway tool calls.
+- Make direct-answer cases just as important as tool-use cases.
 
-#### Calculator Tutor Agent
+## Common mistakes
 
-The assistant either explains a math concept or calls fake arithmetic tools, then explains the result.
+- Treating a tool result as the final answer instead of feeding it back to the assistant.
+- Letting tools do broad reasoning that belongs in the assistant node.
+- Giving tool descriptions so broad that the model calls tools for every question.
+- Forgetting that same-turn parallel tool calls cannot see each other’s results until the next assistant pass.
 
-Why it is useful: it makes the assistant-tool-assistant loop obvious.
+## Simulated-agent idea seeds
 
-#### Backend Helper ReAct Simulation
+### Calculator Tutor Agent
+
+The assistant either explains a math concept directly or calls fake arithmetic tools, then explains the result. This makes the assistant-tool-assistant loop obvious.
+
+### Backend Helper ReAct Simulation
 
 The assistant receives a fake bug report and may call fake tools such as `read_logs`, `inspect_config`, or `search_docs` before answering.
 
-Why it is useful: it practices tool selection and observation-based final answers.
+## Smallest deterministic version
 
-## Usage note
+Implement fake `multiply` and `add` tools. Ask one question that needs a tool and one question that should be answered without a tool.
 
-Use this pattern file only when the selected practice-agent idea needs this specific concept. Keep the main index in context for selection, then load this detail file for implementation planning.
+## How the bootstrap skill should use this file
+
+When this pattern is selected, the bootstrap skill should turn the graph shape, state contract, and smallest deterministic exercise into the per-agent README pair. Keep the first scaffold offline and simulated. Add real model calls only after the learner can explain the deterministic version.
 
 ## Revision history
 
+- 2026-06-08: Expanded into a descriptive, pattern-accurate guide with diagrams and implementation cautions.
 - 2026-05-18: Split from the original monolithic candidate-materials note.

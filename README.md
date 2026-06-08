@@ -52,7 +52,7 @@ English version: [README.en.md](./README.en.md)
 이 저장소에서 권장하는 학습 루프는 다음과 같습니다.
 
 ```mermaid
-flowchart LR
+flowchart TD
     A[연습할 LangGraph 패턴 선택] --> B[시뮬레이션 에이전트 생성]
     B --> C[graph.py 직접 구현]
     C --> D[구현 리뷰 요청]
@@ -60,6 +60,10 @@ flowchart LR
     E --> F[graph_reference.py와 비교]
     F --> G[이해한 부분만 리팩토링]
     G --> C
+
+    B -. 생성 .-> B1[README.md / README.en.md]
+    D -. 생성 .-> D1[FEEDBACK.md]
+    D -. 생성 .-> D2[graph_reference.py]
 ```
 
 직접 구현하고, 리뷰를 받고, 참조 구현과 비교한 뒤, 이해한 개선점만 다시 반영하는 과정을 반복하는 것이 핵심입니다.

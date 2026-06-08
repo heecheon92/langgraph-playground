@@ -1,6 +1,6 @@
 ---
 created: 2026-05-18
-updated: 2026-05-18
+updated: 2026-06-08
 status: active
 topics:
   - langgraph
@@ -16,67 +16,88 @@ related_code:
 
 **Difficulty:** Beginner/Intermediate
 
-### What the pattern teaches
+## What this pattern is
 
-A graph may need internal state that should not be part of the external input or final output. Separating schemas keeps the public interface clean while allowing private intermediate fields.
+A graph often needs more state internally than callers should provide or receive. Multiple schemas let you keep the public interface small while giving internal nodes the working fields they need.
 
-This matters when nodes need temporary calculations, draft values, or implementation details.
+This pattern separates four concerns:
 
-### Basic graph shape
+- input schema: what the caller must provide;
+- internal state schema: everything nodes may read/write;
+- private node-to-node state: temporary implementation details;
+- output schema: what the caller should receive.
+
+## Boundary diagram
 
 ```mermaid
 flowchart LR
-    Input[public input] --> Hidden[private processing]
-    Hidden --> Output[public output]
+    Caller[caller] -->|InputState| Graph
+    subgraph Graph[Internal graph state]
+        Normalize[normalize]
+        Analyze[private analysis]
+        Draft[draft]
+        Final[finalize]
+        Normalize --> Analyze --> Draft --> Final
+    end
+    Graph -->|OutputState| Caller
+
+    Analyze -. private fields .-> Hidden[(normalized_input<br/>rubric<br/>draft_notes)]
 ```
 
-### Typical state idea
-
-- input schema: what callers provide;
-- internal state schema: everything nodes may use;
-- output schema: what callers should receive.
-
-Example fields:
+## State contract
 
 ```python
+from typing_extensions import NotRequired, TypedDict
+
 class InputState(TypedDict):
     question: str
 
-class InternalState(TypedDict):
+class OverallState(TypedDict):
     question: str
-    normalized_question: str
-    draft_answer: str
-    critique: str
-    final_answer: str
+    normalized_question: NotRequired[str]
+    hidden_rubric: NotRequired[str]
+    draft_answer: NotRequired[str]
+    final_answer: NotRequired[str]
 
 class OutputState(TypedDict):
     final_answer: str
 ```
 
-### Implementation cautions
+For stricter runtime validation, Pydantic can be used where messy external values enter the system. For lightweight learning graphs, `TypedDict` keeps the state contract readable.
 
-- Do not expose temporary fields just because they exist.
-- Use private fields for intermediate drafts, route reasons, scores, and tool traces.
+## What to practice
+
+- Decide what fields a caller should never see.
 - Keep final output narrow and user-facing.
+- Use private fields for normalization, route reasons, drafts, scores, and traces.
+- Prefer explicit field names over passing one opaque dict through every node.
 
-### Simulated-agent idea seeds
+## Common mistakes
 
-#### Private State Pipeline
+- Exposing every internal field as final output because it is convenient.
+- Making input schema as large as internal schema.
+- Hiding important user-facing decisions in private state with no explanation.
+- Using private state to avoid designing clean node responsibilities.
+
+## Simulated-agent idea seeds
+
+### Private State Pipeline
 
 Normalize a user request, create hidden analysis, then output only a polished explanation.
 
-Why it is useful: it teaches interface boundaries.
+### Hidden Rubric Evaluator
 
-#### Hidden Rubric Evaluator
+Generate an answer, score it with a hidden rubric, then return only the final answer plus a short user-facing reason.
 
-Generate an answer, score it with a hidden rubric, then return only final answer plus a short reason.
+## Smallest deterministic version
 
-Why it is useful: it separates internal quality control from user output.
+Input only `question`, internally produce `normalized_question` and `rubric_score`, and output only `final_answer`.
 
-## Usage note
+## How the bootstrap skill should use this file
 
-Use this pattern file only when the selected practice-agent idea needs this specific concept. Keep the main index in context for selection, then load this detail file for implementation planning.
+When this pattern is selected, the bootstrap skill should turn the graph shape, state contract, and smallest deterministic exercise into the per-agent README pair. Keep the first scaffold offline and simulated. Add real model calls only after the learner can explain the deterministic version.
 
 ## Revision history
 
+- 2026-06-08: Expanded into a descriptive, pattern-accurate guide with diagrams and implementation cautions.
 - 2026-05-18: Split from the original monolithic candidate-materials note.

@@ -1,6 +1,6 @@
 ---
 created: 2026-05-18
-updated: 2026-05-18
+updated: 2026-06-08
 status: active
 topics:
   - langgraph
@@ -16,35 +16,51 @@ related_code:
 
 **Difficulty:** Advanced
 
-### What the pattern teaches
+## What this pattern is
 
-A deployed graph may receive a new user message while a previous run is still active. The system needs a policy for concurrent input.
+A deployed graph may receive a new user message while a previous run is still active. The runtime needs a double-texting policy: what should happen to the new input?
 
-Common policies:
+This pattern is operational rather than algorithmic. It teaches that agent behavior is not only graph nodes; it also includes run state, concurrency rules, interrupt policies, queueing, and rollback choices.
 
-- reject the new message;
-- enqueue it after the current run;
-- interrupt the current run;
-- rollback and restart from a safer point.
-
-This is more operational than algorithmic, but it matters for real agent applications.
-
-### Basic graph shape
+## Policy flow
 
 ```mermaid
 flowchart TD
     Incoming[new user message] --> Active{run already active?}
-    Active -->|no| StartRun[start run]
-    Active -->|yes| Policy{policy}
-    Policy --> Reject[reject]
-    Policy --> Enqueue[enqueue]
-    Policy --> Interrupt[interrupt]
-    Policy --> Rollback[rollback]
+    Active -->|no| StartRun[start new run]
+    Active -->|yes| Policy{double-texting policy}
+    Policy --> Reject[reject with explanation]
+    Policy --> Enqueue[enqueue after current run]
+    Policy --> Interrupt[interrupt active run]
+    Policy --> Rollback[rollback/fork from safe checkpoint]
+    StartRun --> End([handled])
+    Reject --> End
+    Enqueue --> End
+    Interrupt --> End
+    Rollback --> End
 ```
 
-### Typical state
+## State model
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle
+    idle --> running: start run
+    running --> queued: enqueue message
+    running --> interrupted: interrupt policy
+    running --> rolled_back: rollback policy
+    queued --> running: previous run completes
+    interrupted --> running: resume with new input
+    rolled_back --> running: continue from fork
+    running --> idle: finish
+```
+
+## State contract
 
 ```python
+from typing import Literal
+from typing_extensions import NotRequired, TypedDict
+
 class RunPolicyState(TypedDict):
     current_run_status: Literal["idle", "running", "paused"]
     new_message: str
@@ -52,31 +68,40 @@ class RunPolicyState(TypedDict):
     explanation: NotRequired[str]
 ```
 
-### Implementation cautions
+## What to practice
 
-- Do not simulate real deployment side effects unless explicitly requested.
-- Focus on decision logic and explanation.
-- Make policy tradeoffs visible.
-- Keep examples deterministic.
+- Make the policy decision deterministic first.
+- Explain the tradeoff for each policy.
+- Connect rollback to checkpoint/time-travel concepts.
+- Keep deployment side effects fake.
+- Treat thread identity and active-run status as first-class runtime inputs.
 
-### Simulated-agent idea seeds
+## Common mistakes
 
-#### Run Policy Simulator
+- Ignoring concurrent input until production.
+- Treating enqueue, interrupt, and rollback as equivalent.
+- Letting a new message silently mutate an active run without a policy.
+- Simulating real infrastructure before the policy table is clear.
+
+## Simulated-agent idea seeds
+
+### Run Policy Simulator
 
 Given current run status and a new message, choose reject, enqueue, interrupt, or rollback and explain why.
 
-Why it is useful: it teaches production agent runtime thinking.
-
-#### Assistant Config Lab
+### Assistant Config Lab
 
 The same graph receives different assistant configurations, such as personal tutor vs work assistant, and changes behavior accordingly.
 
-Why it is useful: it practices configurable graph behavior.
+## Smallest deterministic version
 
-## Usage note
+A rule table maps `(run_status, urgency, user_intent)` to one policy and a human-readable explanation.
 
-Use this pattern file only when the selected practice-agent idea needs this specific concept. Keep the main index in context for selection, then load this detail file for implementation planning.
+## How the bootstrap skill should use this file
+
+When this pattern is selected, the bootstrap skill should turn the graph shape, state contract, and smallest deterministic exercise into the per-agent README pair. Keep the first scaffold offline and simulated. Add real model calls only after the learner can explain the deterministic version.
 
 ## Revision history
 
+- 2026-06-08: Expanded into a descriptive, pattern-accurate guide with diagrams and implementation cautions.
 - 2026-05-18: Split from the original monolithic candidate-materials note.

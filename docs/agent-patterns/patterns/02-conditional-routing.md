@@ -1,6 +1,6 @@
 ---
 created: 2026-05-18
-updated: 2026-05-18
+updated: 2026-06-08
 status: active
 topics:
   - langgraph
@@ -16,31 +16,54 @@ related_code:
 
 **Difficulty:** Beginner
 
-### What the pattern teaches
+## What this pattern is
 
-Conditional routing lets runtime state choose the next node. Instead of every edge being fixed, a routing function reads state and returns a route label.
+Conditional routing lets runtime state choose the next node. A node writes a decision into state, or a routing function computes a route directly from state, and `add_conditional_edges(...)` maps that route to the next node.
 
-This is useful when one graph supports several specialized paths.
+This is the first pattern where graph control flow depends on data. It is ideal when the same input type can follow a small, known set of specialized paths.
 
-### Basic graph shape
+## Flowchart
 
 ```mermaid
 flowchart TD
-    Start([START]) --> Classify[classify]
-    Classify --> Route{route}
-    Route -->|billing| Billing[billing_node]
-    Route -->|technical| Technical[technical_node]
-    Route -->|general| General[general_node]
+    Start([START]) --> Classify[classify_request]
+    Classify --> Router{route_decision.step}
+    Router -->|billing| Billing[billing_response]
+    Router -->|technical| Technical[technical_response]
+    Router -->|account| Account[account_response]
+    Router -->|general| General[general_response]
     Billing --> End([END])
     Technical --> End
+    Account --> End
     General --> End
 ```
 
-### Typical state
+## Router sequence
+
+```mermaid
+sequenceDiagram
+    participant Graph
+    participant Classifier
+    participant RouteFn as route_decision
+    participant Worker
+
+    Graph->>Classifier: state with user_input
+    Classifier-->>Graph: {route_decision: {step, reason}}
+    Graph->>RouteFn: merged state
+    RouteFn-->>Graph: "technical"
+    Graph->>Worker: run matching specialist node
+    Worker-->>Graph: {final_answer}
+```
+
+## State contract
 
 ```python
+from typing import Literal
+from pydantic import BaseModel
+from typing_extensions import NotRequired, TypedDict
+
 class RouteDecision(BaseModel):
-    route: Literal["billing", "technical", "general"]
+    step: Literal["billing", "technical", "account", "general"]
     reason: str
 
 class State(TypedDict):
@@ -49,31 +72,41 @@ class State(TypedDict):
     final_answer: NotRequired[str]
 ```
 
-### Implementation cautions
+Use `Literal[...]` or an enum when a route must come from a fixed set. This matters especially when the route is produced by structured LLM output: the schema should make invalid labels hard to produce and easy to catch.
 
-- Use `Literal[...]` or an enum when a route must be one of a fixed set.
-- Keep routing functions separate from worker nodes.
-- Make route labels match node names or provide an explicit route map.
-- Avoid turning simple deterministic classification into unnecessary multi-agent complexity.
+## What to practice
 
-### Simulated-agent idea seeds
+- Keep the classification node separate from worker nodes.
+- Make route labels and node names easy to compare.
+- Store the route reason for debugging, even if the final answer hides it.
+- Start with deterministic keyword routing, then optionally replace the classifier with structured LLM output.
 
-#### Support Ticket Router
+## Common mistakes
 
-Route fake support tickets to billing, technical, account, or general response nodes.
+- Returning a route label that has no matching edge map entry.
+- Embedding all worker logic inside the router, which turns routing into a hidden monolith.
+- Creating multiple “agents” when one classifier plus simple worker nodes is enough.
+- Using unconstrained strings when a fixed `Literal` route set would be clearer.
 
-Why it is useful: it practices structured classification and conditional edges.
+## Simulated-agent idea seeds
 
-#### Learning Question Router
+### Support Ticket Router
 
-Route a study question to concept explanation, code example, debugging help, or quiz mode.
+Route fake support tickets to billing, technical, account, or general response nodes. This practices structured classification and conditional edges.
 
-Why it is useful: it can later become a real learning assistant route pattern.
+### Learning Question Router
 
-## Usage note
+Route a study question to concept explanation, code example, debugging help, or quiz mode. This can later become a real tutor routing pattern.
 
-Use this pattern file only when the selected practice-agent idea needs this specific concept. Keep the main index in context for selection, then load this detail file for implementation planning.
+## Smallest deterministic version
+
+A classifier reads keywords like “refund,” “bug,” and “password,” stores a route decision, and the graph sends the ticket to a canned specialist response.
+
+## How the bootstrap skill should use this file
+
+When this pattern is selected, the bootstrap skill should turn the graph shape, state contract, and smallest deterministic exercise into the per-agent README pair. Keep the first scaffold offline and simulated. Add real model calls only after the learner can explain the deterministic version.
 
 ## Revision history
 
+- 2026-06-08: Expanded into a descriptive, pattern-accurate guide with diagrams and implementation cautions.
 - 2026-05-18: Split from the original monolithic candidate-materials note.
