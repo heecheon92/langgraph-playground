@@ -27,7 +27,7 @@ This is the LangGraph pattern for orchestrator-worker workflows when the number 
 ```mermaid
 flowchart TD
     Start([START]) --> Plan[plan_sections]
-    Plan --> Assign{assign_workers returns Send[]}
+    Plan --> Assign{assign_workers returns Send list}
     Assign -->|Send section A| WorkerA[write_section]
     Assign -->|Send section B| WorkerB[write_section]
     Assign -->|Send section N| WorkerN[write_section]

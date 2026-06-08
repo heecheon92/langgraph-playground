@@ -40,9 +40,9 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    U1[branch A update<br/>{evidence: [a]}] --> Reducer{operator.add}
-    U2[branch B update<br/>{evidence: [b]}] --> Reducer
-    Reducer --> State[evidence: [a, b]]
+    U1["branch A update<br/>adds A note"] --> Reducer{operator.add}
+    U2["branch B update<br/>adds B note"] --> Reducer
+    Reducer --> State["merged evidence<br/>A note + B note"]
 ```
 
 ## State contract
